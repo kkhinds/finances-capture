@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Finances by KH — Phone capture</title>
+<style>
+  :root {
+    --bg: #0d1420; --surface: #131c2b; --raised: #1a2436; --border: #243248;
+    --text: #e8edf4; --text-2: #93a1b5; --accent: #4bd6b6; --accent-ink: #06281f;
+    --neg: #e06a6a; --pos: #58c98b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; padding: 20px 16px 48px;
+    display: flex; justify-content: center;
+  }
+  main { width: 100%; max-width: 420px; }
+  h1 { font-size: 17px; margin-bottom: 2px; }
+  .hint { font-size: 12.5px; color: var(--text-2); }
+  form, .pending { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-top: 14px; }
+  label { display: block; font-size: 12px; color: var(--text-2); margin: 12px 0 4px; }
+  input {
+    width: 100%; padding: 10px 12px; font: inherit; color: var(--text);
+    background: var(--raised); border: 1px solid var(--border); border-radius: 8px;
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+  .seg { display: flex; gap: 4px; background: var(--raised); border: 1px solid var(--border); border-radius: 999px; padding: 3px; margin-top: 12px; }
+  .seg button { flex: 1; padding: 8px; font: inherit; font-size: 13.5px; color: var(--text-2); background: none; border: none; border-radius: 999px; }
+  .seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .btn {
+    display: block; width: 100%; margin-top: 16px; padding: 12px; font: inherit; font-weight: 600;
+    color: var(--accent-ink); background: var(--accent); border: none; border-radius: 10px;
+  }
+  .btn:disabled { opacity: 0.4; }
+  .btn.ghost { background: var(--raised); color: var(--text); border: 1px solid var(--border); }
+  .row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .row:last-child { border-bottom: none; }
+  .row .amt { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .row .amt.income { color: var(--pos); }
+  .row button { background: none; border: none; color: var(--neg); font-size: 16px; padding: 2px 6px; }
+  .msg { margin-top: 10px; font-size: 13px; color: var(--accent); }
+  .err { margin-top: 10px; font-size: 13px; color: var(--neg); }
+  .eyebrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Finances by KH</h1>
+  <p class="hint">Phone capture — save entries here, export one file, upload it to your Finances inbox folder in Proton Drive.</p>
+
+  <form id="f">
+    <div class="seg" id="seg">
+      <button type="button" data-type="expense" class="on">Expense</button>
+      <button type="button" data-type="income">Income</button>
+    </div>
+    <label for="amount">Amount</label>
+    <input id="amount" inputmode="decimal" placeholder="0.00" autocomplete="off" />
+    <label for="desc">Description</label>
+    <input id="desc" placeholder="e.g. Groceries — Massy" autocomplete="off" />
+    <label for="cat">Category (optional)</label>
+    <input id="cat" placeholder="e.g. Groceries" autocomplete="off" />
+    <label for="date">Date</label>
+    <input id="date" type="date" />
+    <p class="err" id="err" hidden></p>
+    <p class="err" id="storageNote" hidden>Heads up: this viewer blocks saved storage, so entries only last while this page is open. Export before closing — or open the page in your browser instead.</p>
+    <button type="button" class="btn" id="saveBtn">Save entry</button>
+  </form>
+
+  <div class="pending">
+    <span class="eyebrow">Pending entries</span>
+    <div id="list"><p class="hint" style="margin-top:8px">Nothing saved yet.</p></div>
+    <button type="button" class="btn ghost" id="export" disabled>Export 0 entries</button>
+    <p class="msg" id="msg" hidden>Uploaded file goes to your Finances inbox folder in Proton Drive.</p>
+  </div>
+</main>
+<script>
+(function () {
+  'use strict'
+  var KEY = 'kh-capture-pending'
+  var type = 'expense'
+
+  // Some viewers (e.g. opening this file inside a cloud app's preview) sandbox
+  // the page and block localStorage entirely. Fall back to in-memory storage so
+  // Save still works, and warn that entries won't survive closing the page.
+  var memory = []
+  var storageOk = (function () {
+    try {
+      localStorage.setItem('kh-capture-probe', '1')
+      localStorage.removeItem('kh-capture-probe')
+      return true
+    } catch (e) { return false }
+  })()
+
+  function uid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '').slice(0, 8)
+    return Math.random().toString(36).slice(2, 10)
+  }
+  function todayLocal() {
+    var d = new Date()
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+  }
+  function load() {
+    if (!storageOk) return memory
+    try { return JSON.parse(localStorage.getItem(KEY)) || [] } catch (e) { return [] }
+  }
+  function save(entries) {
+    if (!storageOk) { memory = entries; return }
+    try { localStorage.setItem(KEY, JSON.stringify(entries)) } catch (e) { storageOk = false; memory = entries }
+  }
+
+  var list = document.getElementById('list')
+  var exportBtn = document.getElementById('export')
+  var msg = document.getElementById('msg')
+  var err = document.getElementById('err')
+
+  function render() {
+    var entries = load()
+    exportBtn.disabled = entries.length === 0
+    exportBtn.textContent = 'Export ' + entries.length + (entries.length === 1 ? ' entry' : ' entries')
+    if (entries.length === 0) {
+      list.innerHTML = '<p class="hint" style="margin-top:8px">Nothing saved yet.</p>'
+      return
+    }
+    list.innerHTML = ''
+    entries.forEach(function (e) {
+      var row = document.createElement('div')
+      row.className = 'row'
+      var name = document.createElement('span')
+      name.textContent = e.description
+      var amt = document.createElement('span')
+      amt.className = 'amt' + (e.type === 'income' ? ' income' : '')
+      amt.textContent = (e.type === 'income' ? '+' : '−') + '$' + e.amount.toFixed(2)
+      var del = document.createElement('button')
+      del.type = 'button'
+      del.textContent = '✕'
+      del.setAttribute('aria-label', 'Delete entry')
+      del.onclick = function () {
+        save(load().filter(function (x) { return x.id !== e.id }))
+        render()
+      }
+      row.appendChild(name); row.appendChild(amt); row.appendChild(del)
+      list.appendChild(row)
+    })
+  }
+
+  document.getElementById('seg').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-type]')
+    if (!b) return
+    type = b.getAttribute('data-type')
+    Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) { x.classList.remove('on') })
+    b.classList.add('on')
+  })
+
+  document.getElementById('date').value = todayLocal()
+  if (!storageOk) document.getElementById('storageNote').hidden = false
+
+  function addEntry() {
+    err.hidden = true
+    var amount = parseFloat(String(document.getElementById('amount').value).replace(/,/g, ''))
+    var desc = document.getElementById('desc').value.trim()
+    var cat = document.getElementById('cat').value.trim()
+    var date = document.getElementById('date').value || todayLocal()
+    if (!isFinite(amount) || amount <= 0) { err.textContent = 'Enter an amount above zero.'; err.hidden = false; return }
+    if (!desc) { err.textContent = 'Enter a description.'; err.hidden = false; return }
+    var entries = load()
+    if (entries.length >= 200) { err.textContent = 'Export your current entries first (200 max per file).'; err.hidden = false; return }
+    var entry = { id: uid(), type: type, amount: Math.round(amount * 100) / 100, date: date, description: desc.slice(0, 200) }
+    if (cat) entry.category = cat.slice(0, 100)
+    entries.push(entry)
+    save(entries)
+    document.getElementById('amount').value = ''
+    document.getElementById('desc').value = ''
+    document.getElementById('cat').value = ''
+    msg.hidden = true
+    render()
+    document.getElementById('amount').focus()
+  }
+
+  // The Save button is type="button" with a click handler — sandboxed viewers
+  // can block form submission entirely. The submit listener keeps Enter working
+  // in normal browsers.
+  document.getElementById('saveBtn').addEventListener('click', addEntry)
+  document.getElementById('f').addEventListener('submit', function (ev) {
+    ev.preventDefault()
+    addEntry()
+  })
+
+  function showMsg(text) { msg.hidden = false; msg.textContent = text }
+
+  // Desktop/Android: the download-attribute anchor produces a saved file.
+  function downloadFile(name, json) {
+    var blob = new Blob([json], { type: 'application/json' })
+    var a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = name
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(function () { URL.revokeObjectURL(a.href) }, 1000)
+  }
+
+  exportBtn.addEventListener('click', function () {
+    var entries = load()
+    if (entries.length === 0) return
+    var batch = { v: 1, id: uid(), entries: entries }
+    var json = JSON.stringify(batch, null, 2)
+    var name = 'batch-' + batch.id + '.json'
+
+    // iOS Safari ignores the download attribute — a blob just opens in a tab and
+    // no file is saved. The Web Share API with a File brings up the iOS share
+    // sheet, where "Save to Files → Proton Drive" (or the Proton Drive app)
+    // actually writes the file. Fall back to a download on desktop/Android.
+    var file
+    try { file = new File([json], name, { type: 'application/json' }) } catch (e) { file = null }
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: 'Finances entries' }).then(function () {
+        save([]); render()
+        showMsg('Saved. Put it in your Finances inbox folder in Proton Drive.')
+      }).catch(function (e) {
+        if (e && e.name === 'AbortError') return // cancelled — keep the pending entries
+        // Sharing failed for another reason — fall back to a download.
+        downloadFile(name, json); save([]); render()
+        showMsg('Exported ' + name + ' — put it in your Finances inbox folder in Proton Drive.')
+      })
+      return
+    }
+
+    downloadFile(name, json); save([]); render()
+    showMsg('Exported ' + name + ' — put it in your Finances inbox folder in Proton Drive.')
+  })
+
+  render()
+})()
+</script>
+</body>
+</html>
