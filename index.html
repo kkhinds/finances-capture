@@ -212,11 +212,14 @@
     // iOS Safari ignores the download attribute — a blob just opens in a tab and
     // no file is saved. The Web Share API with a File brings up the iOS share
     // sheet, where "Save to Files → Proton Drive" (or the Proton Drive app)
-    // actually writes the file. Fall back to a download on desktop/Android.
+    // actually writes the file. Share ONLY the file — a title/text makes iOS
+    // add a stray .txt and rename the file to "shared-text-<time>" whose colons
+    // are illegal on Windows, so Proton Drive can't sync it. Fall back to a
+    // download on desktop/Android.
     var file
     try { file = new File([json], name, { type: 'application/json' }) } catch (e) { file = null }
     if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], title: 'Finances entries' }).then(function () {
+      navigator.share({ files: [file] }).then(function () {
         save([]); render()
         showMsg('Saved. Put it in your Finances inbox folder in Proton Drive.')
       }).catch(function (e) {
