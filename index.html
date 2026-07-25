@@ -85,6 +85,15 @@
     <button type="button" class="btn ghost" id="export" disabled>Export 0 entries</button>
     <p class="msg" id="msg" hidden>Uploaded file goes to your Finances inbox folder in Proton Drive.</p>
   </div>
+
+  <details class="pending" id="relaySetup">
+    <summary class="hint" style="cursor:pointer">Direct send setup</summary>
+    <label for="relayToken">GitHub token</label>
+    <input id="relayToken" type="password" placeholder="github_pat_..." autocomplete="off" />
+    <p class="hint" style="margin-top:6px">With a token saved, Export becomes Send: entries go straight to your
+      computer over your private relay. The same token goes in the desktop app under Settings, Phone capture.</p>
+    <button type="button" class="btn ghost" id="relaySave">Save token</button>
+  </details>
 </main>
 <script>
 (function () {
@@ -129,7 +138,8 @@
   function render() {
     var entries = load()
     exportBtn.disabled = entries.length === 0
-    exportBtn.textContent = 'Export ' + entries.length + (entries.length === 1 ? ' entry' : ' entries')
+    var verb = relayToken() ? 'Send ' : 'Export '
+    exportBtn.textContent = verb + entries.length + (entries.length === 1 ? ' entry' : ' entries')
     if (entries.length === 0) {
       list.innerHTML = '<p class="hint" style="margin-top:8px">Nothing saved yet.</p>'
       return
@@ -212,12 +222,57 @@
     setTimeout(function () { URL.revokeObjectURL(a.href) }, 1000)
   }
 
+  // ---- Direct send: push the batch to the private relay repo. The token
+  // lives only in this phone's storage; the desktop pulls and deletes. ----
+  var RELAY_REPO = 'kkhinds/finances-inbox'
+  var TOKEN_KEY = 'kh-relay-token'
+  function relayToken() { try { return localStorage.getItem(TOKEN_KEY) || '' } catch (e) { return '' } }
+  var tokenInput = document.getElementById('relayToken')
+  var relaySave = document.getElementById('relaySave')
+  tokenInput.value = relayToken()
+  relaySave.addEventListener('click', function () {
+    try { localStorage.setItem(TOKEN_KEY, tokenInput.value.trim()) } catch (e) {}
+    relaySave.textContent = 'Saved'
+    setTimeout(function () { relaySave.textContent = 'Save token' }, 1500)
+    render()
+  })
+
+  function b64utf8(str) {
+    return btoa(unescape(encodeURIComponent(str)))
+  }
+
+  function pushToRelay(name, json, onDone, onFail) {
+    var req = new XMLHttpRequest()
+    req.open('PUT', 'https://api.github.com/repos/' + RELAY_REPO + '/contents/inbox/' + name)
+    req.setRequestHeader('Authorization', 'Bearer ' + relayToken())
+    req.setRequestHeader('Accept', 'application/vnd.github+json')
+    req.timeout = 15000
+    req.onload = function () { (req.status === 201 || req.status === 200) ? onDone() : onFail('HTTP ' + req.status) }
+    req.onerror = function () { onFail('offline') }
+    req.ontimeout = function () { onFail('timed out') }
+    req.send(JSON.stringify({ message: 'phone batch', content: b64utf8(json) }))
+  }
+
   exportBtn.addEventListener('click', function () {
     var entries = load()
     if (entries.length === 0) return
     var batch = { v: 1, id: uid(), entries: entries }
     var json = JSON.stringify(batch, null, 2)
     var name = 'batch-' + batch.id + '.json'
+
+    if (relayToken()) {
+      exportBtn.disabled = true
+      pushToRelay(name, json, function () {
+        save([]); render()
+        showMsg('Sent. Your computer picks it up within about 30 seconds.')
+      }, function (why) {
+        // Push failed (offline, bad token) — entries stay pending; the share
+        // flow below still works as the manual route.
+        render()
+        showMsg('Direct send failed (' + why + '). Entries kept - use Export via the share sheet, or check the token.')
+      })
+      return
+    }
 
     // iOS Safari ignores the download attribute — a blob just opens in a tab and
     // no file is saved. The Web Share API with a File brings up the iOS share
