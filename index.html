@@ -77,11 +77,18 @@
     <p class="err" id="err" hidden></p>
     <p class="err" id="storageNote" hidden>Heads up: this viewer blocks saved storage, so entries only last while this page is open. Export before closing — or open the page in your browser instead.</p>
     <button type="button" class="btn" id="saveBtn">Save entry</button>
-    <label class="btn ghost" style="position:relative;cursor:pointer;text-align:center">
-      Scan a receipt
-      <input id="photo" type="file" accept="image/*" capture="environment"
-             style="position:absolute;inset:0;opacity:0;width:100%;height:100%" />
-    </label>
+    <div style="display:flex;gap:8px">
+      <label class="btn ghost" style="position:relative;cursor:pointer;text-align:center;flex:1;margin-top:16px">
+        Snap a receipt
+        <input id="photo" type="file" accept="image/*" capture="environment"
+               style="position:absolute;inset:0;opacity:0;width:100%;height:100%" />
+      </label>
+      <label class="btn ghost" style="position:relative;cursor:pointer;text-align:center;flex:1;margin-top:16px">
+        From library
+        <input id="photoLib" type="file" accept="image/*"
+               style="position:absolute;inset:0;opacity:0;width:100%;height:100%" />
+      </label>
+    </div>
     <p class="hint" style="margin-top:8px">Snap the receipt and send it. Your computer reads the total and date, then
       holds it in your inbox for you to check.</p>
   </form>
@@ -243,8 +250,9 @@
     img.src = url
   }
 
-  photoInput.addEventListener('change', function () {
-    var file = photoInput.files && photoInput.files[0]
+  var photoLibInput = document.getElementById('photoLib')
+  function onPhotoPicked(input) {
+    var file = input.files && input.files[0]
     if (!file) return
     err.hidden = true
     var entries = load()
@@ -263,18 +271,20 @@
       if (c) entry.category = c.slice(0, 100)
       entries.push(entry)
       save(entries)
-      photoInput.value = ''
+      input.value = ''
       document.getElementById('desc').value = ''
       document.getElementById('cat').value = ''
       render()
       showMsg('Receipt added. Send it when you are ready.')
     }, function (why) {
-      photoInput.value = ''
+      input.value = ''
       err.textContent = why
       err.hidden = false
       msg.hidden = true
     })
-  })
+  }
+  photoInput.addEventListener('change', function () { onPhotoPicked(photoInput) })
+  photoLibInput.addEventListener('change', function () { onPhotoPicked(photoLibInput) })
 
   // The Save button is type="button" with a click handler — sandboxed viewers
   // can block form submission entirely. The submit listener keeps Enter working
