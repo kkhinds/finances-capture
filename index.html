@@ -2,8 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Finances by KH — Phone capture</title>
+<!-- Installable as a home-screen app: opens full screen with its own icon,
+     and the service worker keeps it working with no signal. All relative
+     paths, so the saved-file fallback copy still opens fine. -->
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Finances" />
+<meta name="theme-color" content="#0d1420" />
 <style>
   :root {
     --bg: #0d1420; --surface: #131c2b; --raised: #1a2436; --border: #243248;
@@ -236,6 +246,13 @@
   })
 
   render()
+
+  // Offline cache — only meaningful on the hosted page (https). Opening the
+  // saved-file fallback copy has no service worker support; the guard keeps it
+  // quiet there rather than erroring.
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    try { navigator.serviceWorker.register('sw.js') } catch (e) { /* not fatal — page still works online */ }
+  }
 })()
 </script>
 </body>
