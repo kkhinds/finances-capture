@@ -212,7 +212,10 @@
   // Photos ride inside the same batch envelope as typed entries, so there's
   // one transport and one pipeline. Downscale hard first: a raw phone photo is
   // several MB, and the desktop caps a decoded photo at 1MB.
-  var MAX_EDGE = 1280
+  // 1792 not 1280: receipts are narrow with small print, and the desktop's
+  // reader needs the pixels — at 1280 a thermal slip's total came out garbled.
+  // Still comfortably inside the desktop's 1MB decoded cap after JPEG.
+  var MAX_EDGE = 1792
   var MAX_PHOTO_B64 = 900 * 1024
   var photoInput = document.getElementById('photo')
 
