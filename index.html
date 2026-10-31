@@ -7,17 +7,20 @@
 <!-- Installable as a home-screen app: opens full screen with its own icon,
      and the service worker keeps it working with no signal. All relative
      paths, so the saved-file fallback copy still opens fine. -->
+<!-- Hosted from github.com/kkhinds/finances-capture: its index.html is a copy
+     of this file, and manifest.json, its icons and sw.js live there. Phones
+     only see this page's changes once that repo is updated. -->
 <link rel="manifest" href="manifest.json" />
-<link rel="apple-touch-icon" href="icon-180.png" />
+<link rel="apple-touch-icon" href="data:image/png;base64,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" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Finances" />
-<meta name="theme-color" content="#0d1420" />
+<meta name="theme-color" content="#0f1412" />
 <style>
   :root {
     --bg: #0d1420; --surface: #131c2b; --raised: #1a2436; --border: #243248;
-    --text: #e8edf4; --text-2: #93a1b5; --accent: #4bd6b6; --accent-ink: #06281f;
+    --text: #e8edf4; --text-2: #93a1b5; --accent: #3ec6a8; --accent-ink: #06281f;
     --neg: #e06a6a; --pos: #58c98b;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -28,7 +31,7 @@
     display: flex; justify-content: center;
   }
   main { width: 100%; max-width: 420px; }
-  h1 { font-size: 17px; margin-bottom: 2px; }
+  h1 { display: flex; align-items: center; gap: 8px; font-size: 17px; margin-bottom: 2px; }
   .hint { font-size: 12.5px; color: var(--text-2); }
   form, .pending { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-top: 14px; }
   label { display: block; font-size: 12px; color: var(--text-2); margin: 12px 0 4px; }
@@ -58,7 +61,7 @@
 </head>
 <body>
 <main>
-  <h1>Finances by KH</h1>
+  <h1><svg aria-hidden="true" width="17" height="18" viewBox="16 0 224 240"><path fill="var(--accent)" fill-rule="evenodd" d="M16 40A40 40 0 0 1 56 0L200 0A40 40 0 0 1 240 40L240 240L184 184L128 240L72 184L16 240ZM64 32L176 32L176 64L112 64L112 96L160 96L160 128L112 128L112 160L64 160Z"/></svg> Finances by KH</h1>
   <p class="hint">Phone capture — save entries here, export one file, upload it to your Finances inbox folder in Proton Drive.</p>
 
   <form id="f">
